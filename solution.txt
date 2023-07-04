@@ -1,0 +1,295 @@
+Lab | Cleaning categorical data
+
+Instructions
+1-Define a function that given a pandas DataFrame as input creates a seaborn countplot of each categorical column. Make sure to sort the bars by frequency ie: the most frequent values should be placed first. Hint: use .value_counts(). In addition, if the amount of unique values of a categorical column (cardinality) is six or more, the corresponding countplot should have the bars placed on the y-axis instead of the x-axis.
+
+def plot_categorical_columns(df):
+    categorical_cols = df.select_dtypes(include='object').columns
+    
+    for col in categorical_cols:
+        if df[col].nunique() >= 6:
+            plt.figure(figsize=(8, 6))
+            sns.countplot(y=col, data=df, order=df[col].value_counts().index)
+        else:
+            plt.figure(figsize=(6, 6))
+            sns.countplot(x=col, data=df, order=df[col].value_counts().index)
+            
+        plt.title(f'Countplot of {col}')
+        plt.show()
+
+ -----
+ plot_categorical_columns(customer_df)
+
+ 2-policy_type and policy columns are redundant, and what's worse policy column has a lot of possible unique values (high cardinality) which will be problematic when they will be dummified with an OneHotEncoder because we will increase a lot the number of columns in the dataframe. Drop the column policy_type and transform the column policy to three possible values: L1, L2, and L3 using a function.
+
+ customer_df = customer_df.drop("policy_type", axis=1)
+ -----
+ def transform_policy(policy):
+    if policy.startswith("L1"):
+        return "L1"
+    elif policy.startswith("L2"):
+        return "L2"
+    else:
+        return "L3"
+-----
+customer_df["policy"] = customer_df["policy"].apply(transform_policy)
+-----
+customer_df["policy"]
+
+3-Time dependency analysis. Use a seaborn line plot using the column effective_to_date to see if total_claim_amount is bigger at some specific dates. Use a figsize=(10,10)
+
+plt.figure(figsize=(10, 10))
+
+# Create line plot
+sns.lineplot(data=customer_df, x='effective_to_date', y='total_claim_amount')
+
+# Rotate x-axis labels for better readability (optional)
+plt.xticks(rotation=45)
+
+# Display the plot
+plt.show()
+
+4-To continue the analysis define an empty pandas DataFrame, and add the following new columns:
+day with the day number of effective_to_date
+day_name with the day NAME of effective_to_date
+week with the week of effective_to_date
+month with the month NAME of effective_to_date
+total_claim_amount with total_claim_amount
+
+df = pd.DataFrame()
+
+effective_to_date = pd.to_datetime([])
+
+# Add columns to the DataFrame
+df['effective_to_date'] = effective_to_date
+df['day'] = df['effective_to_date'].dt.day
+df['day_name'] = df['effective_to_date'].dt.day_name()
+df['week'] = df['effective_to_date'].dt.week
+df['month'] = df['effective_to_date'].dt.month_name()
+df['total_claim_amount'] = 0
+
+# Display the DataFrame
+print(df)
+
+5-Compute the total target column aggregated day_name rounded to two decimals and then reorder the index of the resulting pandas series using .reindex(index=list_of_correct_days)
+
+aggregated = df.groupby('day_name').sum().round(2)
+
+# Define the correct order of days
+list_of_correct_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+# Reorder the index of the resulting pandas series
+reordered = aggregated.reindex(index=list_of_correct_days)
+
+# Print the resulting series
+print(reordered)
+
+6-Use a seaborn line plot to plot the previous series. Do you see some differences by day of the week?
+
+sns.lineplot(data=reordered)
+
+7-Get the total number of claims by day of the week name and then reorder the index of the resulting pandas series using .reindex(index=list_of_correct_values)
+
+reordered['day'] = pd.to_datetime(reordered['day'])  # Convert claim_date to datetime if it's not already
+
+# Group by day of the week and count the number of claims
+claims_by_day = reordered.groupby(reordered['day'].dt.day_name()).size()
+
+print(claims_by_day)
+-----
+correct_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+claims_by_day_reordered = claims_by_day.reindex(index=correct_order)
+
+print(claims_by_day_reordered)
+
+8-Get the median "target" by day of the week name and then sort the resulting values in descending order using .sort_values()
+
+medians = claims_by_day_reordered.groupby("day").median()
+sorted_medians = medians.sort_values(ascending=False)
+sorted_medians
+
+9-Plot the median "target" by day of the week name using a seaborn barplot
+
+median_data = sorted_medians.groupby('day').median().reset_index()
+-----
+sns.set(style="whitegrid")
+plt.figure(figsize=(8, 6))
+sns.barplot( data=median_data, ci=None)
+plt.title("Median 'target' by Day of the Week")
+plt.xlabel("Day of the Week")
+plt.ylabel("Median Target")
+plt.show()
+
+10-What can you conclude from this analysis?
+
+11-Compute the total target column aggregated month rounded to two decimals and then reorder the index of the resulting pandas series using .reindex(index=list_of_correct_values)
+
+# Compute total target column aggregated by month, rounded to two decimals
+total_target = df.groupby('month').sum().round(2)
+
+# Define the correct order of index values as a list
+list_of_correct_values = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+# Reorder the index of the resulting series using .reindex()
+reordered_total_target = total_target.reindex(index=list_of_correct_values)
+
+# Print the resulting series
+print(reordered_total_target)
+
+12-Can you do a monthly analysis given the output of the previous series? Why?
+
+13-Define a function to remove the outliers of a numerical continuous column depending if a value is bigger or smaller than a given amount of standard deviations of the mean (thr=3).
+
+def remove_outliers(data, column, thr=3):
+    """
+    Remove outliers from a numerical continuous column based on a given threshold number of standard deviations from the mean.
+    
+    Parameters:
+        - data (pandas DataFrame): The DataFrame containing the data.
+        - column (str): The name of the column to remove outliers from.
+        - thr (float): The threshold number of standard deviations from the mean. Default is 3.
+        
+    Returns:
+        - data (pandas DataFrame): The DataFrame with outliers removed.
+    """
+    mean = np.mean(data[column])
+    std = np.std(data[column])
+    threshold = thr * std
+
+    data = data[(data[column] >= mean - threshold) & (data[column] <= mean + threshold)]
+    
+    return data
+
+14-Use the previous function to remove the outliers of continuous data and to generate a continuous_clean_df.
+
+continuous_clean_df = remove_outliers(customer_df,'customer_lifetime_value')
+
+15-Concatenate the continuous_cleaned_df, discrete_df, categorical_df, and the relevant column of time_df. After removing outliers the continuous_cleaned dataframe will have fewer rows (when you concat the individual dataframes using pd.concat()) the resulting dataframe will have NaN's because of the different sizes of each dataframe. Use pd.dropna() and .reset_index() to fix the final dataframe.
+
+concatenated_df = pd.concat([continuous_clean_df, discrete_df, categorical_df], axis=1)
+-----
+final_df = concatenated_df.dropna().reset_index(drop=True)
+
+16-Reorder the columns of the dataframe to place 'total_claim_amount' as the last column.
+
+customer_df = customer_df.reindex(columns=[col for col in customer_df.columns if col != 'total_claim_amount'] + ['total_claim_amount'])
+
+17-Turn the response column values into (Yes=1/No=0).
+
+customer_df['response'] = customer_df['response'].map({"Yes": 1, "No": 0})
+
+18-Reduce the class imbalance in education by grouping together ["Master","Doctor"] into "Graduate" while keeping the other possible values as they are. In this way, you will reduce a bit the class imbalance at the price of losing a level of detail.
+
+customer_df['education'] = customer_df['education'].replace(['Master', 'Doctor'], 'Graduate')
+-----
+class_counts = customer_df['education'].value_counts()
+class_counts
+
+19-Reduce the class imbalance of the employmentstatus column grouping together ["Medical Leave", "Disabled", "Retired"] into "Inactive" while keeping the other possible values as they are. In this way, you will reduce a bit the class imbalance at the price of losing a level of detail.
+
+group_mapping = {
+    'Medical Leave': 'Inactive',
+    'Disabled': 'Inactive',
+    'Retired': 'Inactive'
+}
+------
+customer_df['employmentstatus'] = customer_df['employmentstatus'].map(group_mapping).fillna(customer_df['employmentstatus'])
+
+# Display the updated class distribution
+print(customer_df['employmentstatus'].value_counts())
+
+20-Deal with column Gender turning the values into (1/0).
+
+gender_mapping = {'M': 1, 'F': 0}
+-----
+customer_df['gender'] = customer_df['gender'].map(gender_mapping)
+-----
+customer_df['gender']
+
+21-Now, deal with vehicle_class grouping together "Sports Car", "Luxury SUV", and "Luxury Car" into a common group called Luxury leaving the other values as they are. In this way, you will reduce a bit the class imbalance at the price of losing a level of detail.
+
+grouping_dict = {
+    'Sports Car': 'Luxury',
+    'Luxury SUV': 'Luxury',
+    'Luxury Car': 'Luxury'
+}
+-----
+customer_df['vehicle_class'].replace(grouping_dict, inplace=True)
+-----
+print(customer_df['vehicle_class'].value_counts())
+
+22-Now it's time to deal with the categorical ordinal columns, assigning a numerical value to each unique value respecting the ìmplicit ordering`. Encode the coverage: "Premium" > "Extended" > "Basic".
+
+!pip install pandas scikit-learn
+-----
+from sklearn.preprocessing import LabelEncoder
+-----
+coverage_mapping = {
+    'Basic': 1,
+    'Extended': 2,
+    'Premium': 3
+}
+
+encoder = LabelEncoder()
+customer_df['coverage_encoded'] = customer_df['coverage'].map(coverage_mapping)
+
+23-Encode the column employmentstatus as: "Employed" > "Inactive" > "Unemployed".
+
+customer_df['employmentstatus_encoded'] = customer_df['employmentstatus'].map({
+    'Employed': 2,
+    'Inactive': 1,
+    'Unemployed': 0
+})
+------
+print(customer_df['employmentstatus_encoded'].value_counts())
+
+24-Encode the column location_code as: "Urban" > "Suburban" > "Rural".
+
+encoding_dict = {
+    "Urban": 0,
+    "Suburban": 1,
+    "Rural": 2
+}
+-----
+customer_df['location_code_encoded'] = customer_df['location_code'].map(encoding_dict)
+print(customer_df['location_code_encoded'].value_counts())
+
+25-Encode the column vehicle_size as: "Large" > "Medsize" > "Small".
+
+encoding_dict = {'Large': 2, 'Medsize': 1, 'Small': 0}
+
+customer_df['vehicle_size_encoded'] = customer_df['vehicle_size'].map(encoding_dict)
+
+print(customer_df['location_code_encoded'].value_counts())
+
+26-Get a dataframe with the categorical nominal columns
+
+categorical_columns = customer_df.select_dtypes(include=['object']).columns
+
+# Create a new dataframe with only the categorical columns
+df_categorical = customer_df[categorical_columns]
+
+# Display the dataframe with categorical columns
+df_categorical
+
+27-Create a list of named levels which that has as many elements as categorical nominal columns. Each element must be another list with all the possible unique values of the corresponding categorical nominal column: ie:
+levels = [ [col1_value1, col1_value2,...], [col2_value1, col2_value2,...], ...]
+
+# Get the unique values for each categorical nominal column
+levels = []
+for col in df_categorical.columns:
+    if df_categorical[col].dtype == 'object':  # Assuming categorical nominal columns are of type 'object'
+        unique_values = df_categorical[col].unique().tolist()
+        levels.append(unique_values)
+-----
+# Print the levels
+for i, col_levels in enumerate(levels):
+    print(f"Levels for column {df_categorical.columns[i]}: {col_levels}")
+
+28-Instantiate an sklearn OneHotEncoder with drop set to first and categories to levels
+
+from sklearn.preprocessing import OneHotEncoder
+
+encoder = OneHotEncoder(drop='first', categories='levels')
+
+
